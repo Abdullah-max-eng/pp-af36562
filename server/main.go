@@ -8,7 +8,8 @@
 //   - /healthz endpoint (readiness probe)
 //   - /query endpoint: Cypher -> SQL -> MySQL -> JSON rows
 //   - Structured logging + nice console previews of results
-//   - Graceful shutdown on SIGINT/SIGTERM
+//   - Graceful shutdown on SIGINT/SIGTERM.  CREATE (n:Person {name: 'Alice', props: 'Prooops'}) RETURN n
+
 package main
 
 import (
@@ -142,6 +143,7 @@ func main() {
 	r.POST("/query", func(c *gin.Context) {
 		// Parse and validate the incoming request JSON.
 		var qr QueryRequest
+
 		if err := c.ShouldBindJSON(&qr); err != nil {
 			log.Printf("[/query] bad json: %v", err)
 			c.JSON(http.StatusBadRequest, QueryResponse{Error: "bad json"})
@@ -175,11 +177,13 @@ func main() {
 		//   - collect stdout as SQL text
 		//   - respect the provided context for timeouts/cancellation
 		sqlText, err := TransformCypherToSQL(ctx, cfg.TransformerPath, cy)
+
 		if err != nil {
 			log.Printf("[/query] transformer error: %v", err)
 			c.JSON(http.StatusBadGateway, QueryResponse{Error: "transformer error: " + err.Error()})
 			return
 		}
+
 		// MustNonEmpty is another helper (not shown). We use it to reject empty SQL
 		// (e.g., when the transformer doesn't understand the Cypher).
 		if _, err := MustNonEmpty(sqlText); err != nil {
@@ -226,6 +230,7 @@ func main() {
 	// 4) Spin up the HTTP server with our Gin handler.
 	//    We run it in a goroutine so we can concurrently wait for a shutdown signal.
 	srv := &http.Server{Addr: cfg.ListenAddr, Handler: r}
+
 	go func() {
 		log.Printf("listening on %s", cfg.ListenAddr)
 		// ListenAndServe blocks until the server stops or errors.
@@ -248,6 +253,7 @@ func main() {
 	defer cancel()
 	_ = srv.Shutdown(ctx)
 	log.Println("shutdown complete")
+
 }
 
 // --------- helpers for nicer logs ----------
