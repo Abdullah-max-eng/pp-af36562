@@ -1,21 +1,29 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os/exec"
 	"strings"
 )
 
-// TransformCypherToSQL runs the Rust transformer and returns the SQL it prints.
 func TransformCypherToSQL(ctx context.Context, binPath, cypher string) (string, error) {
-	// Example: transformer-rs "<cypher>"
-	cmd := exec.CommandContext(ctx, binPath, cypher)
+	cmd := exec.CommandContext(ctx, binPath)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdin = strings.NewReader(cypher)
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
 
-	// cmd.Output() will honor ctx: if ctx is done, the process is killed.
-	out, err := cmd.Output()
-	if err != nil {
-		return "", fmt.Errorf("transformer exec: %w", err)
+	if err := cmd.Run(); err != nil {
+		return "", fmt.Errorf("transformer exec: %w; stderr=%s", err, truncate(stderr.String(), 4000))
 	}
-	return strings.TrimSpace(string(out)), nil
+	return strings.TrimSpace(stdout.String()), nil
+}
+
+func truncate(s string, max int) string {
+	if len(s) <= max {
+		return s
+	}
+	return s[:max] + "...(truncated)"
 }

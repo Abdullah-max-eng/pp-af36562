@@ -100,6 +100,8 @@ func main() {
 	// 1) Load configuration.
 	cfg := mustLoadConfig()
 
+	log.Println("---- Using this Transformer Path ---------------", cfg.TransformerPath)
+
 	// 2) Open a connection handle to MySQL.
 	//    OpenDB is your project helper (not shown in this file). It should:
 	//      - connect using cfg.MySQLDSN
@@ -220,7 +222,7 @@ func main() {
 
 		// Print up to 10 sample rows in a simple table for humans scanning logs.
 		log.Println("---- Sample rows (up to 10) ----")
-		printRows(cols, rows, 10)
+		// printRows(cols, rows, 10)
 		log.Println("--------------------------------")
 
 		// Return structured JSON back to the client. We omit Error when there's none.
