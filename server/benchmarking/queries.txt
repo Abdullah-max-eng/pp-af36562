@@ -1,0 +1,10 @@
+MATCH (n) RETURN n LIMIT 10
+MATCH (p:Person {name:'Alice'}) RETURN p
+MATCH (a)-[r:KNOWS]->(b) RETURN a, b LIMIT 10
+MATCH p = (:Person)-[:KNOWS*3]->(:Person) RETURN p LIMIT 5
+MATCH (p:Person) RETURN COUNT(p)
+MATCH (p:Person) RETURN p ORDER BY p.age DESC LIMIT 5
+MATCH (u:User)-[:LIKES]->(p:Product) RETURN u, p LIMIT 10
+MATCH (p:Person) WHERE p.age > 30 AND p.city = 'Berlin' RETURN p
+MATCH p = shortestPath((a:Place)-[:ROAD*]-(b:Place)) RETURN p LIMIT 1
+MATCH (p:Person {id: 123}) RETURN p
