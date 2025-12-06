@@ -1,5 +1,7 @@
 name: Go CI
 
+# This workflow runs automatically on every push or PR to the main branch. It ensures the Go server builds and all tests pass before changes are merged.
+
 on:
   push:
     branches: [main]
@@ -8,37 +10,46 @@ on:
 
 jobs:
   test:
+    # Use GitHub’s latest Ubuntu runner for Go builds/tests
     runs-on: ubuntu-latest
 
     defaults:
       run:
-        # All run: commands happen from the repo root by default
+        # All commands will use Bash unless overridden
         shell: bash
 
     steps:
+      # Pull the repository code into the CI environment
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # Install the correct version of Go so tests run
+      # exactly the same in CI as they do locally
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.22" # or whatever you use locally
+          go-version: "1.22" # Match your local Go version
 
+      # Cache Go module download + build cache
+      # Speeds up CI runs significantly on repeated builds
       - name: Cache Go build and module files
         uses: actions/cache@v4
         with:
           path: |
-            ~/go/pkg/mod
-            ~/.cache/go-build
+            ~/go/pkg/mod        # downloaded dependency modules
+            ~/.cache/go-build   # compiled build cache
           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
           restore-keys: |
             ${{ runner.os }}-go-
 
-      # All Go commands happen in the server/ folder
+      # Ensure dependencies for the server module are downloaded
+      # All commands below happen inside server/
       - name: Download modules
         working-directory: ./server
         run: go mod download
 
+      # Run all Go tests in the server folder recursively
+      # This will fail the workflow if any test fails
       - name: Run tests
         working-directory: ./server
         run: go test ./...
