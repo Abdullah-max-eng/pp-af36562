@@ -17,12 +17,6 @@ import (
 	"github.com/joho/godotenv"
 )
 
-// ----------------------------------------------------------------------
-// Config
-// ----------------------------------------------------------------------
-
-// Config collects all tunable settings for the service. We load these from
-// environment variables (optionally via a .env file for local dev).
 type Config struct {
 	// Address the HTTP server will bind/listen on.
 	// Example: ":8081" for all interfaces on port 8081.
@@ -32,8 +26,6 @@ type Config struct {
 	//   user:pass@tcp(127.0.0.1:3306)/graph?parseTime=true&loc=Local
 	MySQLDSN string
 
-	// Absolute or relative path to the transformer binary that turns Cypher into SQL.
-	// Example:
 	//   "../transformer-rs/target/release/transformer-rs"
 	TransformerPath string
 }
@@ -64,15 +56,11 @@ func getenv(k, def string) string {
 	return def
 }
 
-// ----------------------------------------------------------------------
 // HTTP payload types
-// ----------------------------------------------------------------------
-
 // QueryRequest is the JSON we accept at POST /query:
 //
 //	{
 //	  "cypher": "MATCH ... RETURN ..."
-//	//
 type QueryRequest struct {
 	Cypher string `json:"cypher"`
 }
