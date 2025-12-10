@@ -21,20 +21,35 @@ type Config struct {
 	// Address the HTTP server will bind/listen on.
 	// Example: ":8081" for all interfaces on port 8081.
 	ListenAddr string
-
 	// MySQL connection string (Data Source Name). Typical format:
 	//   user:pass@tcp(127.0.0.1:3306)/graph?parseTime=true&loc=Local
 	MySQLDSN string
-
 	//   "../transformer-rs/target/release/transformer-rs"
 	TransformerPath string
+}
+
+// HTTP payload types
+// QueryRequest is the JSON we accept at POST /query:
+//
+//	{
+//	  "cypher": "MATCH ... RETURN ..."
+type QueryRequest struct {
+	Cypher string `json:"cypher"`
+}
+
+// QueryResponse is the JSON we return from POST /query.
+type QueryResponse struct {
+	Columns []string        `json:"columns,omitempty"`
+	Rows    [][]any         `json:"rows,omitempty"`
+	Error   string          `json:"error,omitempty"`
+	Raw     json.RawMessage `json:"raw,omitempty"`
 }
 
 // mustLoadConfig loads .env (if present) and reads env vars, falling back to
 // safe defaults. It never returns an error (hence "must*").
 func mustLoadConfig() Config {
 	// Load variables from a .env file if it exists. Missing file is not fatal.
-	_ = godotenv.Load()
+	_ = godotenv.Load() // ignore error
 
 	return Config{
 		// If LISTEN_ADDR is unset, default to :8081
@@ -56,33 +71,17 @@ func getenv(k, def string) string {
 	return def
 }
 
-// HTTP payload types
-// QueryRequest is the JSON we accept at POST /query:
-//
-//	{
-//	  "cypher": "MATCH ... RETURN ..."
-type QueryRequest struct {
-	Cypher string `json:"cypher"`
-}
-
-// QueryResponse is the JSON we return from POST /query.
-type QueryResponse struct {
-	Columns []string        `json:"columns,omitempty"`
-	Rows    [][]any         `json:"rows,omitempty"`
-	Error   string          `json:"error,omitempty"`
-	Raw     json.RawMessage `json:"raw,omitempty"`
-}
-
 // ----------------------------------------------------------------------
 // Abstraction for the transformer (for testability)
 // ----------------------------------------------------------------------
-
 type transformerFunc func(ctx context.Context, binPath, cypher string) (string, error)
 
 // handleQuery returns a Gin handler that implements the full
-// Cypher → transformer → SQL → DB → JSON pipeline.
+
 func handleQuery(db *DB, binPath string, tf transformerFunc) gin.HandlerFunc {
-	return func(c *gin.Context) {
+
+	return func(c *gin.Context) { // Gin handler func that will be called per request
+
 		var qr QueryRequest
 
 		// 1) Parse JSON
@@ -110,13 +109,16 @@ func handleQuery(db *DB, binPath string, tf transformerFunc) gin.HandlerFunc {
 		ctx, cancel := context.WithTimeout(c.Request.Context(), 10*time.Second)
 		defer cancel()
 
+		/// Main function of the handeler is run transformer
 		sqlText, err := tf(ctx, binPath, cy)
+
+		//----------------------------------------------------------------------
+		// two checkpoints added for testing transformer errors and empty SQL
 		if err != nil {
 			log.Printf("[/query] transformer error: %v", err)
 			c.JSON(http.StatusBadGateway, QueryResponse{Error: "transformer error: " + err.Error()})
 			return
 		}
-
 		// Reject empty SQL from transformer
 		if _, err := MustNonEmpty(strings.TrimSpace(sqlText)); err != nil {
 			log.Printf("[/query] transformer returned empty SQL")
@@ -124,11 +126,12 @@ func handleQuery(db *DB, binPath string, tf transformerFunc) gin.HandlerFunc {
 			return
 		}
 
+		// lets output the SQL for debugging
 		log.Println("---- Transformer output (SQL) ----")
 		log.Println(sqlText)
 		log.Println("----------------------------------")
 
-		// 4) Execute SQL against MySQL
+		// here we execute the SQL against mysql
 		sqlStart := time.Now()
 		cols, rows, err := db.Query(c.Request.Context(), sqlText)
 		if err != nil {
@@ -136,6 +139,7 @@ func handleQuery(db *DB, binPath string, tf transformerFunc) gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, QueryResponse{Error: "sql error: " + err.Error()})
 			return
 		}
+
 		sqlDur := time.Since(sqlStart)
 
 		// 5) Log summary
@@ -157,15 +161,18 @@ func handleQuery(db *DB, binPath string, tf transformerFunc) gin.HandlerFunc {
 // ----------------------------------------------------------------------
 
 func main() {
+
 	// 1) Load configuration.
 	cfg := mustLoadConfig()
 	log.Println("---- Using this Transformer Path ---------------", cfg.TransformerPath)
 
 	// 2) Open MySQL connection.
 	db, err := OpenDB(cfg.MySQLDSN)
+
 	if err != nil {
 		log.Fatalf("mysql open: %v", err)
 	}
+
 	defer db.Close()
 
 	// 3) Set up Gin engine.
@@ -199,12 +206,12 @@ func main() {
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
 	<-stop
-
 	// Graceful shutdown with timeout.
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	_ = srv.Shutdown(ctx)
 	log.Println("shutdown complete")
+
 }
 
 // ----------------------------------------------------------------------

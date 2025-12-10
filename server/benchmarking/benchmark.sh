@@ -2,7 +2,7 @@
 
 #simple benchmark.sh scrip
 
-SERVER_URL="http://localhost:8081/query"  # Update this if your server listens on a different port
+SERVER_URL="http://localhost:8081/query" # URL of the graph database server's query endpoint
 OUTPUT_FILE="results.csv"                 # CSV output file where final results are stored
 QUERIES_FILE="queries.txt"                # File containing one Cypher query per line
 RUNS=100                                   # How many times each query should be executed
